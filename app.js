@@ -1,193 +1,41 @@
-var state = {
-  loggedIn:false,
-  name:"",
-  role:"receptionist",
-  institution:"Windhoek Central Hospital",
-  patient:null,
-  encounter:false,
-  audit:[]
-};
-
-var patients = {
-  "90051400123":{
-    vnId:"VN-00012847",
-    name:"Anna Amutenya",
-    dob:"14 May 1990",
-    sex:"Female",
-    nationality:"Namibian",
-    phone:"+264 81 555 0142",
-    address:"Windhoek",
-    coverage:"State patient",
-    provider:"Public healthcare",
-    allergies:"Penicillin - severe reaction",
-    conditions:"Hypertension; Migraine",
-    medication:"Amlodipine 5 mg once daily",
-    encounters:[
-      ["03 Aug 2026","Oshakati Intermediate Hospital","Outpatient","Persistent headaches","Migraine"],
-      ["17 Mar 2026","Katutura Intermediate Hospital","Emergency","Abdominal pain","Resolved"]
-    ]
-  },
-  "P99887766":{
-    vnId:"VN-00048293",
-    name:"Tendai Moyo",
-    dob:"02 February 1988",
-    sex:"Male",
-    nationality:"Zimbabwean",
-    phone:"+264 81 330 1010",
-    address:"Windhoek",
-    coverage:"Private medical aid",
-    provider:"Example Health Fund",
-    allergies:"No known drug allergies",
-    conditions:"Asthma",
-    medication:"Salbutamol inhaler as needed",
-    encounters:[
-      ["29 Jul 2026","Windhoek Central Hospital","Emergency","Asthma exacerbation","Asthma"]
-    ]
-  }
-};
-
-function roleLabel(){
-  if(state.role==="doctor") return "Doctor";
-  if(state.role==="nurse") return "Nurse";
-  if(state.role==="billing") return "Billing Officer";
-  return "Receptionist";
-}
-function canClinical(){ return state.role==="doctor" || state.role==="nurse"; }
-function canCoverage(){ return state.role==="receptionist" || state.role==="billing"; }
-function canCheckIn(){ return state.role==="receptionist" || state.role==="nurse"; }
-
-function addAudit(action,result){
-  state.audit.unshift([new Date().toLocaleString(),state.name,roleLabel(),action,result||"GRANTED"]);
-}
-
-function esc(s){
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-function showLogin(){
-  document.getElementById("userInfo").innerHTML="Not signed in";
-  document.getElementById("screen").innerHTML =
-    '<div class="card" style="max-width:460px;margin:40px auto">' +
-    '<h1>VeriNam</h1>' +
-    '<p class="small">Healthcare prototype - fictional demo data only.</p>' +
-    '<label>Name</label><input id="name" value="Demo User">' +
-    '<label>Role</label><select id="role">' +
-      '<option value="receptionist">Receptionist</option>' +
-      '<option value="nurse">Nurse</option>' +
-      '<option value="doctor">Doctor</option>' +
-      '<option value="billing">Billing Officer</option>' +
-    '</select>' +
-    '<label>Institution</label><select id="institution">' +
-      '<option>Windhoek Central Hospital</option>' +
-      '<option>Oshakati Intermediate Hospital</option>' +
-      '<option>Walvis Bay State Hospital</option>' +
-    '</select>' +
-    '<button onclick="login()">Sign in</button>' +
-    '</div>';
-}
-function login(){
-  state.loggedIn=true;
-  state.name=document.getElementById("name").value || "Demo User";
-  state.role=document.getElementById("role").value;
-  state.institution=document.getElementById("institution").value;
-  addAudit("Signed in","GRANTED");
-  showDashboard();
-}
-function topNav(){
-  document.getElementById("userInfo").innerHTML=esc(state.name)+" · "+roleLabel()+" · "+esc(state.institution);
-  return '<nav class="card">' +
-    '<button onclick="showDashboard()">Dashboard</button>' +
-    '<button onclick="showLookup()">Patient Lookup</button>' +
-    '<button onclick="showAudit()">Audit Log</button>' +
-    '<button class="secondary" onclick="logout()">Sign out</button>' +
-    '</nav>';
-}
-function logout(){
-  state.loggedIn=false; state.patient=null; state.encounter=false; state.audit=[];
-  showLogin();
-}
-function showDashboard(){
-  var s=topNav();
-  s+='<div class="card"><h1>Dashboard</h1><p class="small">Find a patient by simulated ID or passport scan.</p>' +
-     '<input id="search" placeholder="Try 90051400123 or P99887766">' +
-     '<button onclick="searchPatient()">Scan / Search</button></div>';
-  document.getElementById("screen").innerHTML=s;
-}
-function showLookup(){ showDashboard(); }
-function searchPatient(){
-  var v=document.getElementById("search").value;
-  var p=patients[v];
-  if(!p){ alert("No matching fictional patient. Try 90051400123 or P99887766"); return; }
-  state.patient=p; state.encounter=false;
-  addAudit("Identified patient "+p.vnId,"GRANTED");
-  showPatient();
-}
-function info(label,value){
-  return '<div class="row"><div class="label">'+esc(label)+'</div><div class="value">'+esc(value)+'</div></div>';
-}
-function showPatient(){
-  var p=state.patient;
-  var s=topNav();
-  s+='<div class="card"><h1>'+esc(p.name)+'</h1><span class="badge">Identity verified</span>' +
-     '<p class="small">'+esc(p.vnId)+' · '+esc(p.dob)+' · '+esc(p.sex)+' · '+esc(p.nationality)+'</p></div>';
-
-  if(state.encounter){
-    s+='<div class="card"><b>Active encounter:</b> '+esc(state.institution)+'</div>';
-  } else {
-    s+='<div class="card restricted">No active encounter. Clinical access is restricted.</div>';
-  }
-
-  s+='<div class="grid">';
-  s+='<div class="card"><h3>Patient details</h3>'+info("Phone",p.phone)+info("Address",p.address);
-  if(canCheckIn() && !state.encounter) s+='<button onclick="checkIn()">Check in patient</button>';
-  if(state.encounter) s+='<button class="secondary" onclick="closeEncounter()">Close encounter</button>';
-  s+='</div>';
-
-  s+='<div class="card"><h3>Healthcare coverage</h3>';
-  if(canCoverage()) s+=info("Funding type",p.coverage)+info("Provider",p.provider);
-  else s+='<div class="restricted">Your role does not require detailed coverage information.</div>';
-  s+='</div></div>';
-
-  s+='<div class="card"><h3>Clinical summary</h3>';
-  if(canClinical() && state.encounter){
-    addAudit("Viewed clinical summary","GRANTED");
-    s+=info("Allergies",p.allergies)+info("Conditions",p.conditions)+info("Medication",p.medication);
-  } else {
-    if(!canClinical()) addAudit("Attempted clinical summary access","DENIED");
-    s+='<div class="restricted">Clinical information requires an authorised clinical role and an active encounter.</div>';
-  }
-  s+='</div>';
-
-  s+='<div class="card"><h3>Previous encounters</h3><table><tr><th>Date</th><th>Facility</th><th>Department</th><th>Reason</th><th>Diagnosis</th></tr>';
-  var i,e;
-  for(i=0;i<p.encounters.length;i++){
-    e=p.encounters[i];
-    s+='<tr><td>'+esc(e[0])+'</td><td>'+esc(e[1])+'</td><td>'+esc(e[2])+'</td><td>'+esc(e[3])+'</td><td>'+esc(canClinical()&&state.encounter?e[4]:"Restricted")+'</td></tr>';
-  }
-  s+='</table></div>';
-  document.getElementById("screen").innerHTML=s;
-}
-function checkIn(){
-  state.encounter=true;
-  addAudit("Opened encounter for "+state.patient.vnId,"GRANTED");
-  showPatient();
-}
-function closeEncounter(){
-  state.encounter=false;
-  addAudit("Closed encounter for "+state.patient.vnId,"GRANTED");
-  showPatient();
-}
-function showAudit(){
-  var s=topNav();
-  s+='<div class="card"><h1>Audit Log</h1><table><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th><th>Result</th></tr>';
-  var i,a;
-  for(i=0;i<state.audit.length;i++){
-    a=state.audit[i];
-    s+='<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1])+'</td><td>'+esc(a[2])+'</td><td>'+esc(a[3])+'</td><td>'+esc(a[4])+'</td></tr>';
-  }
-  if(state.audit.length===0) s+='<tr><td colspan="5">No audit events yet.</td></tr>';
-  s+='</table></div>';
-  document.getElementById("screen").innerHTML=s;
-}
-
-showLogin();
+var DB={patients:{
+"90051400123":{vnId:"VN-00012847",identifier:"90051400123",idType:"Namibian ID",name:"Anna Amutenya",dob:"14 May 1990",sex:"Female",nationality:"Namibian",status:"Authoritatively verified",phone:"+264 81 555 0142",address:"Windhoek",emergencyContact:"Petrus Amutenya · +264 81 777 8211",coverage:{type:"State patient",provider:"Public healthcare",status:"Active"},allergies:["Penicillin — severe reaction"],conditions:["Hypertension","Migraine"],medications:["Amlodipine 5 mg once daily"],encounters:[{date:"03 Aug 2026",facility:"Oshakati Intermediate Hospital",dept:"Outpatient",reason:"Persistent headaches",diagnosis:"Migraine"},{date:"17 Mar 2026",facility:"Katutura Intermediate Hospital",dept:"Emergency",reason:"Abdominal pain",diagnosis:"Resolved"}],labs:[{date:"11 Aug 2026",name:"Full Blood Count",facility:"Oshakati Laboratory",status:"Completed"},{date:"11 Aug 2026",name:"Kidney Function",facility:"Oshakati Laboratory",status:"Completed"}],referrals:[{date:"12 Aug 2026",from:"Oshakati Intermediate Hospital",to:"Windhoek Cardiology",reason:"Cardiology assessment",status:"Active"}],children:[{vnId:"VN-00035821",identifier:"BR-2022-00088",idType:"Birth record",name:"Tulela Amutenya",dob:"06 February 2022",sex:"Male",nationality:"Namibian",status:"Birth record verified",coverage:{type:"Dependent / state patient",provider:"Public healthcare",status:"Active"}}]},
+"P99887766":{vnId:"VN-00048293",identifier:"P99887766",idType:"Passport",name:"Tendai Moyo",dob:"02 February 1988",sex:"Male",nationality:"Zimbabwean",status:"Document verified",phone:"+264 81 330 1010",address:"Windhoek",emergencyContact:"Rudo Moyo · +264 81 220 4030",coverage:{type:"Private medical aid",provider:"Example Health Fund",status:"Active"},allergies:["No known drug allergies"],conditions:["Asthma"],medications:["Salbutamol inhaler as needed"],encounters:[{date:"29 Jul 2026",facility:"Windhoek Central Hospital",dept:"Emergency",reason:"Asthma exacerbation",diagnosis:"Asthma"}],labs:[],referrals:[],children:[]},
+"BR-2022-00088":{vnId:"VN-00035821",identifier:"BR-2022-00088",idType:"Birth record",name:"Tulela Amutenya",dob:"06 February 2022",sex:"Male",nationality:"Namibian",status:"Birth record verified",phone:"Guardian contact",address:"Windhoek",emergencyContact:"Anna Amutenya · Guardian",coverage:{type:"Dependent / state patient",provider:"Public healthcare",status:"Active"},allergies:["No known allergies"],conditions:[],medications:[],encounters:[{date:"01 Jul 2026",facility:"Windhoek Central Hospital",dept:"Paediatrics",reason:"Routine review",diagnosis:"Well child"}],labs:[],referrals:[],children:[],guardian:{vnId:"VN-00012847",name:"Anna Amutenya",relationship:"Parent"}}
+}};
+var roles={receptionist:{label:"Receptionist",clinical:false,coverage:true,checkin:true,register:true},nurse:{label:"Nurse",clinical:true,coverage:false,checkin:true,register:false},doctor:{label:"Doctor",clinical:true,coverage:false,checkin:false,register:false},billing:{label:"Billing Officer",clinical:false,coverage:true,checkin:false,register:false},admin:{label:"System Administrator",clinical:false,coverage:false,checkin:false,register:false}};
+var state={user:null,page:"dashboard",patient:null,activeEncounter:false,tab:"summary",audit:[],notice:""};
+function esc(v){return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function role(){return roles[state.user.role]}
+function log(action,result){state.audit.unshift({time:new Date().toLocaleString(),user:state.user?state.user.name:"System",role:state.user?role().label:"System",institution:state.user?state.user.institution:"",action:action,result:result||"GRANTED"})}
+function render(){document.getElementById("app").innerHTML=state.user?shell():login()}
+function login(){return '<div class="login"><div class="login-card"><div class="brand-row"><div class="logo">V</div><div><strong>VeriNam</strong><div class="muted">Healthcare prototype v2</div></div></div><h1>Secure sign in</h1><p class="muted">Fictional demo data only.</p><div class="field"><label>Name</label><input id="loginName" value="Demo User"></div><div class="field"><label>Role</label><select id="loginRole"><option value="receptionist">Receptionist</option><option value="nurse">Nurse</option><option value="doctor">Doctor</option><option value="billing">Billing Officer</option><option value="admin">System Administrator</option></select></div><div class="field"><label>Institution</label><select id="loginInstitution"><option>Windhoek Central Hospital</option><option>Oshakati Intermediate Hospital</option><option>Walvis Bay State Hospital</option></select></div><button class="primary" style="width:100%" onclick="doLogin()">Sign in</button></div></div>'}
+function doLogin(){state.user={name:document.getElementById("loginName").value||"Demo User",role:document.getElementById("loginRole").value,institution:document.getElementById("loginInstitution").value};log("Signed in");state.page="dashboard";render()}
+function shell(){return '<div class="app-shell">'+sidebar()+'<div class="content"><div class="topbar"><div><strong>VeriNam</strong><div class="muted" style="font-size:12px">National identity-linked health access prototype</div></div><div class="user-meta">'+esc(state.user.name)+'<br>'+esc(role().label)+' · '+esc(state.user.institution)+'</div></div><main class="main">'+page()+'</main></div></div>'}
+function sidebar(){return '<aside class="sidebar"><div class="brand-row"><div class="logo">V</div><div class="brand-name">VeriNam</div></div><div class="nav">'+nav("dashboard","Dashboard")+nav("scan","Scan / Find Patient")+nav("register","New Patient")+nav("audit","Audit Log")+'<button onclick="logout()">Sign out</button></div><div class="sidebar-footer">Prototype v2 · Fictional data only</div></aside>'}
+function nav(id,label){return '<button class="'+(state.page===id?"active":"")+'" onclick="go(\''+id+'\')">'+label+'</button>'}
+function go(p){state.page=p;render()}
+function logout(){state={user:null,page:"dashboard",patient:null,activeEncounter:false,tab:"summary",audit:[],notice:""};render()}
+function page(){if(state.page==="scan")return scanPage();if(state.page==="register")return registerPage();if(state.page==="patient")return patientPage();if(state.page==="audit")return auditPage();return dashboard()}
+function dashboard(){return '<h1 class="page-title">Dashboard</h1><p class="subtitle">Fast patient identification and authorised access.</p><div class="grid grid-4">'+kpi("Role",role().label)+kpi("Institution",state.user.institution)+kpi("Network","Connected")+kpi("Access model","Role + encounter")+'</div><div class="grid grid-2" style="margin-top:18px"><div class="scan-card"><h3>Scan or find patient</h3><p class="muted">Use a Namibian ID, passport, birth record, or VeriNam ID.</p><div class="search-box"><input id="dashSearch" placeholder="90051400123"><button class="primary" onclick="searchFrom(\'dashSearch\')">Find patient</button></div><p class="muted" style="font-size:12px">Demo: 90051400123 · P99887766 · BR-2022-00088</p></div><div class="card"><h3>Purpose of VeriNam</h3><p class="muted">Reduce repetitive forms, phone calls, and fragmented records while preserving strict access controls.</p><div class="successbox">Identify ≠ Authorise. Finding a person does not automatically unlock their records.</div></div></div>'}
+function kpi(label,value){return '<div class="card"><div class="muted">'+esc(label)+'</div><div class="kpi" style="font-size:20px">'+esc(value)+'</div></div>'}
+function scanPage(){return '<h1 class="page-title">Scan / Find Patient</h1><p class="subtitle">Identify the person first. Permissions are checked separately.</p><div class="scan-card"><div class="scan-area"><div class="scan-icon">▣</div><h3>Simulated ID scan</h3><p class="muted">Enter the identifier printed on the ID, passport, or birth record.</p><div class="search-box"><input id="scanInput" placeholder="ID / Passport / Birth record / VeriNam ID"><button class="primary" onclick="searchFrom(\'scanInput\')">Scan / Search</button></div><p class="muted" style="font-size:12px">Try: 90051400123, P99887766, BR-2022-00088</p></div></div>'}
+function searchFrom(id){var q=(document.getElementById(id).value||"").trim(),p=DB.patients[q],keys,i;if(!p){keys=Object.keys(DB.patients);for(i=0;i<keys.length;i++){if(DB.patients[keys[i]].vnId===q){p=DB.patients[keys[i]];break}}}if(!p){state.notice=q;state.page="register";log("Patient lookup failed for "+q,"NOT FOUND");render();return}state.patient=p;state.activeEncounter=false;state.tab="summary";log("Identified patient "+p.vnId);state.page="patient";render()}
+function registerPage(){if(!role().register)return '<h1 class="page-title">New Patient</h1><div class="restricted">Your role does not have permission to register new patients.</div>';return '<h1 class="page-title">First-time Patient Registration</h1><p class="subtitle">Only collect information that is missing.</p>'+(state.notice?'<div class="alert">No existing record found for <b>'+esc(state.notice)+'</b>. Create a new VeriNam profile if appropriate.</div>':"")+'<div class="card" style="margin-top:18px"><div class="form-grid">'+field("newIdentifier","Identifier / document number",state.notice||"")+selectField("newIdType","Document type",["Namibian ID","Passport","Birth record","Residence document","Temporary / no document"])+field("newName","Full legal name","")+field("newDob","Date of birth","")+selectField("newSex","Sex",["Female","Male","Other / not recorded"])+field("newNationality","Nationality","Namibian")+field("newPhone","Phone","")+field("newAddress","Address / town","")+selectField("newCoverage","Healthcare funding",["State patient","PSEMAS","Private medical aid","Self-pay","Foreign/travel insurance","Unknown"])+field("newProvider","Provider / scheme (if applicable)","")+'</div><div class="actions" style="margin-top:18px"><button class="primary" onclick="createPatient()">Create patient record</button><button class="secondary" onclick="go(\'scan\')">Cancel</button></div></div>'}
+function field(id,label,value){return '<div class="field"><label>'+esc(label)+'</label><input id="'+id+'" value="'+esc(value)+'"></div>'}
+function selectField(id,label,items){var s='<div class="field"><label>'+esc(label)+'</label><select id="'+id+'">';for(var i=0;i<items.length;i++)s+='<option>'+esc(items[i])+'</option>';return s+'</select></div>'}
+function createPatient(){var identifier=document.getElementById("newIdentifier").value.trim();if(!identifier){alert("Enter an identifier or choose Temporary / no document.");return}var idType=document.getElementById("newIdType").value,name=document.getElementById("newName").value.trim()||"Unnamed patient",newId="VN-"+String(Math.floor(10000000+Math.random()*89999999)),p={vnId:newId,identifier:identifier,idType:idType,name:name,dob:document.getElementById("newDob").value||"Unknown",sex:document.getElementById("newSex").value,nationality:document.getElementById("newNationality").value||"Unknown",status:idType==="Temporary / no document"?"Unverified temporary identity":"Document pending verification",phone:document.getElementById("newPhone").value||"Not provided",address:document.getElementById("newAddress").value||"Not provided",emergencyContact:"Not provided",coverage:{type:document.getElementById("newCoverage").value,provider:document.getElementById("newProvider").value||"Not recorded",status:"Recorded"},allergies:[],conditions:[],medications:[],encounters:[],labs:[],referrals:[],children:[]};DB.patients[identifier]=p;state.patient=p;state.activeEncounter=false;state.tab="summary";state.notice="";log("Created new patient "+newId);state.page="patient";render()}
+function patientPage(){var p=state.patient;if(!p)return '<div class="alert">No patient selected.</div>';return '<div class="patient-head"><div><h1 class="page-title">'+esc(p.name)+'</h1><p class="subtitle">'+esc(p.vnId)+' · '+esc(p.idType)+' '+esc(p.identifier)+' · '+esc(p.dob)+' · '+esc(p.nationality)+'</p></div><span class="badge '+((p.status.indexOf("verified")>=0||p.status.indexOf("Verified")>=0)?"success":"warn")+'">'+esc(p.status)+'</span></div>'+(state.activeEncounter?'<div class="successbox">Active encounter at '+esc(state.user.institution)+'. Role-based access is active.</div>':'<div class="alert">No active encounter. Clinical details may remain restricted.</div>')+'<div class="tabs" style="margin-top:18px">'+tabBtn("summary","Summary")+tabBtn("history","History")+tabBtn("children","Children / Guardians")+tabBtn("coverage","Coverage")+'</div>'+patientTab(p)}
+function tabBtn(id,label){return '<button class="'+(state.tab===id?"active":"")+'" onclick="setTab(\''+id+'\')">'+label+'</button>'}
+function setTab(t){state.tab=t;render()}
+function patientTab(p){if(state.tab==="history")return historyTab(p);if(state.tab==="children")return childrenTab(p);if(state.tab==="coverage")return coverageTab(p);return summaryTab(p)}
+function summaryTab(p){var clinicalAllowed=role().clinical&&state.activeEncounter,s='<div class="grid grid-2"><div class="card"><h3>Patient details</h3>'+info("Phone",p.phone)+info("Address",p.address)+info("Emergency contact",p.emergencyContact);if(role().checkin&&!state.activeEncounter)s+='<div class="actions" style="margin-top:14px"><button class="primary" onclick="openEncounter()">Check in / open encounter</button></div>';if(state.activeEncounter)s+='<div class="actions" style="margin-top:14px"><button class="secondary" onclick="closeEncounter()">Close encounter</button></div>';s+='</div><div class="card"><h3>Clinical summary</h3>';if(clinicalAllowed){log("Viewed clinical summary");s+=info("Allergies",p.allergies.length?p.allergies.join(", "):"None recorded")+info("Conditions",p.conditions.length?p.conditions.join(", "):"None recorded")+info("Medication",p.medications.length?p.medications.join(", "):"None recorded")}else{if(!role().clinical)log("Attempted clinical summary access","DENIED");s+='<div class="restricted">Clinical information requires an authorised clinical role and active encounter.</div>'}s+='</div></div><div class="grid grid-2" style="margin-top:18px"><div class="card"><h3>Active referrals</h3>';if(p.referrals.length){for(var i=0;i<p.referrals.length;i++){var r=p.referrals[i];s+='<div class="row"><div><div class="value">'+esc(r.to)+'</div><div class="label">'+esc(r.reason)+' · from '+esc(r.from)+'</div></div><span class="badge info">'+esc(r.status)+'</span></div>'}}else s+='<div class="empty">No active referrals.</div>';s+='</div><div class="card"><h3>Recent lab results</h3>';if(clinicalAllowed){if(p.labs.length){for(var j=0;j<p.labs.length;j++){var l=p.labs[j];s+='<div class="row"><div><div class="value">'+esc(l.name)+'</div><div class="label">'+esc(l.date)+' · '+esc(l.facility)+'</div></div><span class="badge success">'+esc(l.status)+'</span></div>'}}else s+='<div class="empty">No recent results.</div>'}else s+='<div class="restricted">Lab results require clinical access and an active encounter.</div>';s+='</div></div>';return s}
+function historyTab(p){var canSeeDiagnosis=role().clinical&&state.activeEncounter,s='<div class="card"><h3>Previous encounters across facilities</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Facility</th><th>Department</th><th>Reason</th><th>Diagnosis</th></tr></thead><tbody>';if(p.encounters.length){for(var i=0;i<p.encounters.length;i++){var e=p.encounters[i];s+='<tr><td>'+esc(e.date)+'</td><td>'+esc(e.facility)+'</td><td>'+esc(e.dept)+'</td><td>'+esc(e.reason)+'</td><td>'+esc(canSeeDiagnosis?e.diagnosis:"Restricted")+'</td></tr>'}}else s+='<tr><td colspan="5">No encounters recorded.</td></tr>';return s+'</tbody></table></div></div>'}
+function childrenTab(p){var s='<div class="grid grid-2"><div class="card"><h3>Linked children / dependants</h3>';if(p.children&&p.children.length){for(var i=0;i<p.children.length;i++){var c=p.children[i];s+='<div class="child-card"><div class="patient-head"><div><div class="value">'+esc(c.name)+'</div><div class="label">'+esc(c.dob)+' · '+esc(c.idType)+'</div></div><span class="badge success">'+esc(c.status)+'</span></div><button class="secondary" onclick="openChild(\''+esc(c.identifier)+'\')">Open child record</button></div>'}}else s+='<div class="empty">No linked children or dependants.</div>';s+='</div><div class="card"><h3>Guardian</h3>';if(p.guardian)s+=info("Guardian",p.guardian.name)+info("Relationship",p.guardian.relationship)+info("VeriNam ID",p.guardian.vnId);else s+='<div class="empty">No guardian relationship recorded.</div>';return s+'</div></div>'}
+function openChild(identifier){if(DB.patients[identifier]){state.patient=DB.patients[identifier];state.activeEncounter=false;state.tab="summary";log("Opened linked child record "+state.patient.vnId);render()}}
+function coverageTab(p){var s='<div class="card"><h3>Healthcare funding / coverage</h3>';if(role().coverage)s+=info("Funding type",p.coverage.type)+info("Provider",p.coverage.provider)+info("Status",p.coverage.status);else s+='<div class="restricted">Detailed coverage information is restricted for this role.</div>';return s+'</div>'}
+function openEncounter(){state.activeEncounter=true;log("Opened active encounter for "+state.patient.vnId);render()}
+function closeEncounter(){state.activeEncounter=false;log("Closed encounter for "+state.patient.vnId);render()}
+function info(label,value){return '<div class="row"><div><div class="label">'+esc(label)+'</div><div class="value">'+esc(value)+'</div></div></div>'}
+function auditPage(){var s='<h1 class="page-title">Audit Log</h1><p class="subtitle">Record access should always be traceable.</p><div class="card"><div class="table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Institution</th><th>Action</th><th>Result</th></tr></thead><tbody>';if(state.audit.length){for(var i=0;i<state.audit.length;i++){var a=state.audit[i];s+='<tr><td>'+esc(a.time)+'</td><td>'+esc(a.user)+'</td><td>'+esc(a.role)+'</td><td>'+esc(a.institution)+'</td><td>'+esc(a.action)+'</td><td><span class="badge '+(a.result==="GRANTED"?"success":a.result==="DENIED"?"danger":"warn")+'">'+esc(a.result)+'</span></td></tr>'}}else s+='<tr><td colspan="6">No audit events yet.</td></tr>';return s+'</tbody></table></div></div>'}
+render();
